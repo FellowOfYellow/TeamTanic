@@ -80,7 +80,7 @@ def group_numerical_data(df):
     if 'Age' in df.columns:
         df['Age'] = pd.cut(df['Age'], bins=5, labels=False)
     if 'Fare' in df.columns:
-        df['Fare'] = pd.qcut(df['Fare'], q=2, labels=False)
+        df['Fare'] = pd.qcut(df['Fare'], q=5, labels=False)
     return df
 
 
