@@ -250,6 +250,7 @@ def main():
     # pos = nx.shell_layout(dag)
     # nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
     # plt.title('Directed Acyclic Graph (DAG)')
+    # plt.savefig('dag_mle.png')
     # plt.show()
 
 
