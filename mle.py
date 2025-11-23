@@ -5,7 +5,7 @@ import networkx as nx
 from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score
 
 np.random.seed(42)
 
@@ -182,6 +182,8 @@ def evaluate_inference(cpt, parent_dict, test_file='./titanic/test.csv', solutio
         y_pred.append(1 if inference_result[row['PassengerId']] >= 0.5 else 0)
 
     print('Accuracy:', accuracy_score(y_true, y_pred))
+    print('Precision:', precision_score(y_true, y_pred))
+    print('Recall:', recall_score(y_true, y_pred))
 
     print('Classification Report:\n', classification_report(y_true, y_pred))
     cm = confusion_matrix(y_true, y_pred)
