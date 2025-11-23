@@ -5,6 +5,7 @@ import networkx as nx
 from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 np.random.seed(42)
 
@@ -117,6 +118,78 @@ def maximum_likelihood_estimation(df, parent_dict):
     return cpt
 
 
+def inference(cpt, parent_dict, test_file='./titanic/test.csv', query='Survived', 
+              evidence=['Age', 'SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']):
+    # read the test data
+    data = pd.read_csv(test_file)
+    
+    # generate random data for missing values
+    data = generate_random_ages(data)
+    data = generate_random_embarked(data)
+    # encode categorical columns and group numerical columns
+    data = group_numerical_data(data)
+
+    result = {}
+
+    pbar = tqdm(data.iterrows(), total=data.shape[0])
+    # perform inference
+    for _, row in pbar:
+        evidence_values = {e: row[e] for e in evidence}
+        # P(Survived=1 | Evidence) = P(Survived, Evidence) / P(Evidence)
+        # calculate P(Evidence)
+        evidence_prob = 1.0
+        # for each evidence node
+        for x_i in evidence:
+            # get the parents of the evidence node
+            pa_i = parent_dict.get(x_i, [])
+            # get the cpt for the evidence node
+            cpt_xi = cpt[x_i]
+            # filter for the evidence value
+            cpt_xi = cpt_xi[cpt_xi[x_i] == evidence_values[x_i]]
+            # P(X_i=x|pa_i=pi)
+            for p in pa_i:
+                # filter for the evidence values
+                cpt_xi = cpt_xi[cpt_xi[p] == evidence_values[p]]
+            evidence_prob *= cpt_xi['prob'].sum()
+        # P(Survived = 1, Evidence)
+        joint_prob = evidence_prob
+        # get the cpt for the query node
+        cpt_query = cpt[query]
+        # filter for the query value
+        cpt_query = cpt_query[cpt_query[query] == 1]
+        # for each parent of the query node
+        for p in parent_dict.get(query, []):
+            # filter for the evidence values
+            cpt_query = cpt_query[cpt_query[p] == evidence_values[p]]
+        joint_prob *= cpt_query['prob'].sum()
+        # calculate the posterior probability and store the result
+        result[row['PassengerId']] = joint_prob / evidence_prob if evidence_prob > 0 else 0   
+        pbar.set_description(f'P({query} = 1 | Evidence) = {joint_prob / evidence_prob if evidence_prob > 0 else 0:.4f}')
+    return result
+
+
+def evaluate_inference(cpt, parent_dict, test_file='./titanic/test.csv', solution_file='./titanic/gender_submission.csv', 
+                       query='Survived', evidence=['Age', 'SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']):
+    # run inference on the test data
+    inference_result = inference(cpt, parent_dict, test_file=test_file, query=query, evidence=evidence)
+    # read the solution data
+    solution = pd.read_csv(solution_file)
+
+    # prepare true and predicted labels
+    y_true, y_pred = [], []
+    for _, row in solution.iterrows():
+        y_true.append(row[query])
+        y_pred.append(1 if inference_result[row['PassengerId']] >= 0.5 else 0)
+
+    print('Accuracy:', accuracy_score(y_true, y_pred))
+
+    print('Classification Report:\n', classification_report(y_true, y_pred))
+    cm = confusion_matrix(y_true, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.show()
+
+
 def main():
     # load data from the CSV file
     data = pd.read_csv('./titanic/train.csv')
@@ -141,6 +214,8 @@ def main():
 
     # perform maximum likelihood estimation
     cpt = maximum_likelihood_estimation(data, parent_dict)
+    
+    evaluate_inference(cpt, parent_dict)
 
     # # exapmle usage: entire cpt for P(Fare|Embarked, Pclass)
     # print('P(Fare|Embarked, Pclass) = \n', cpt['Fare'])
@@ -155,27 +230,27 @@ def main():
     # print('P(Fare=0|Embarked=Q, Pclass=3) = \n', cpt['Fare'][(cpt['Fare']['Embarked'] == 'Q') & (cpt['Fare']['Pclass'] == 3) & (cpt['Fare']['Fare'] == 0)])
     # print('-' * 50)
 
-    # print out the entire cpts
-    for node, prob in cpt.items():
-        # get the parents of the node
-        parents = parent_dict.get(node, [])
-        # root nodes
-        if not parents:
-            print(f'P({node}) = \n', prob)
-        # nodes with parents
-        else:
-            print(f'P({node}|{", ".join(parents)}) = \n', prob)
-        print('-' * 50)
+    # # print out the entire cpts
+    # for node, prob in cpt.items():
+    #     # get the parents of the node
+    #     parents = parent_dict.get(node, [])
+    #     # root nodes
+    #     if not parents:
+    #         print(f'P({node}) = \n', prob)
+    #     # nodes with parents
+    #     else:
+    #         print(f'P({node}|{", ".join(parents)}) = \n', prob)
+    #     print('-' * 50)
 
-    # create the dag
-    dag = nx.DiGraph()
-    dag.add_edges_from(edges)
-    # visualize the dag
-    plt.figure(figsize=(10, 6))
-    pos = nx.shell_layout(dag)
-    nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
-    plt.title('Directed Acyclic Graph (DAG)')
-    plt.show()
+    # # create the dag
+    # dag = nx.DiGraph()
+    # dag.add_edges_from(edges)
+    # # visualize the dag
+    # plt.figure(figsize=(10, 6))
+    # pos = nx.shell_layout(dag)
+    # nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
+    # plt.title('Directed Acyclic Graph (DAG)')
+    # plt.show()
 
 
 if __name__ == '__main__':
