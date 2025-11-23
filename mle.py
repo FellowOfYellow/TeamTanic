@@ -6,6 +6,7 @@ from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 
+np.random.seed(42)
 
 def generate_random_ages(df):
     '''
@@ -22,7 +23,7 @@ def generate_random_ages(df):
     # calculate mean and standard deviation of the column
     mu, sigma = df['Age'].mean(), df['Age'].std()
     # generate random ages based on the calculated mean and std
-    random_ages = np.random.normal(mu, sigma, size=df['Age'].isnull().sum(), seed=42)
+    random_ages = np.random.normal(mu, sigma, size=df['Age'].isnull().sum())
     # fill the null values with the generated random ages
     df.loc[df['Age'].isnull(), 'Age'] = random_ages
     # return the modified dataframe
@@ -43,7 +44,7 @@ def generate_random_embarked(df):
     # get the unique values in the 'Embarked' column
     unique_values = df['Embarked'].dropna().unique()
     # generate random embarked values based on the unique values
-    random_embarked = np.random.choice(unique_values, size=df['Embarked'].isnull().sum(), replace=True, seed=42)
+    random_embarked = np.random.choice(unique_values, size=df['Embarked'].isnull().sum(), replace=True)
     # fill the null values with the generated random embarked values
     df.loc[df['Embarked'].isnull(), 'Embarked'] = random_embarked
     # return the modified dataframe
