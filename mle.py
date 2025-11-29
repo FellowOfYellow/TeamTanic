@@ -80,10 +80,10 @@ def group_numerical_data(df):
         pd.DataFrame: The modified dataframe with encoded categorical columns and grouped numerical columns
     '''
     if 'Age' in df.columns:
-        df['Age'] = pd.cut(df['Age'], bins=5, labels=False)
+        df['Age'], age_bins = pd.cut(df['Age'], bins=5, labels=False, retbins=True)
     if 'Fare' in df.columns:
-        df['Fare'] = pd.qcut(df['Fare'], q=5, labels=False)
-    return df
+        df['Fare'], fare_bins = pd.qcut(df['Fare'], q=5, labels=False, retbins=True)
+    return df, age_bins, fare_bins
 
 
 def maximum_likelihood_estimation(df, parent_dict):
@@ -118,7 +118,7 @@ def maximum_likelihood_estimation(df, parent_dict):
     return cpt
 
 
-def inference(cpt, parent_dict, test_file='./titanic/test.csv', query='Survived', 
+def inference(cpt, parent_dict, age_bins, fare_bins, test_file='./titanic/test.csv', query='Survived', 
               evidence=['Age', 'SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']):
     # read the test data
     data = pd.read_csv(test_file)
@@ -127,7 +127,8 @@ def inference(cpt, parent_dict, test_file='./titanic/test.csv', query='Survived'
     data = generate_random_ages(data)
     data = generate_random_embarked(data)
     # encode categorical columns and group numerical columns
-    data = group_numerical_data(data)
+    data['Age'] = np.searchsorted(age_bins, data['Age'], side='right') - 1
+    data['Fare'] = np.searchsorted(fare_bins, data['Fare'], side='right') - 1
 
     result = {}
 
@@ -168,10 +169,10 @@ def inference(cpt, parent_dict, test_file='./titanic/test.csv', query='Survived'
     return result
 
 
-def evaluate_inference(cpt, parent_dict, test_file='./titanic/test.csv', solution_file='./titanic/gender_submission.csv', 
+def evaluate_inference(cpt, parent_dict, age_bins, fare_bins, test_file='./titanic/test.csv', solution_file='./titanic/gender_submission.csv', 
                        query='Survived', evidence=['Age', 'SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']):
     # run inference on the test data
-    inference_result = inference(cpt, parent_dict, test_file=test_file, query=query, evidence=evidence)
+    inference_result = inference(cpt, parent_dict, age_bins, fare_bins, test_file=test_file, query=query, evidence=evidence)
     # read the solution data
     solution = pd.read_csv(solution_file)
 
@@ -202,7 +203,7 @@ def main():
     data = generate_random_ages(data)
     data = generate_random_embarked(data)
     # encode categorical columns and group numerical columns
-    data = group_numerical_data(data)
+    data, age_bins, fare_bins = group_numerical_data(data)
 
     # define the edges of the dag
     edges = [
@@ -217,7 +218,7 @@ def main():
     # perform maximum likelihood estimation
     cpt = maximum_likelihood_estimation(data, parent_dict)
     
-    evaluate_inference(cpt, parent_dict)
+    evaluate_inference(cpt, parent_dict, age_bins=age_bins, fare_bins=fare_bins)
 
     # # exapmle usage: entire cpt for P(Fare|Embarked, Pclass)
     # print('P(Fare|Embarked, Pclass) = \n', cpt['Fare'])
@@ -244,16 +245,16 @@ def main():
     #         print(f'P({node}|{", ".join(parents)}) = \n', prob)
     #     print('-' * 50)
 
-    # create the dag
-    dag = nx.DiGraph()
-    dag.add_edges_from(edges)
-    # visualize the dag
-    plt.figure(figsize=(10, 6))
-    pos = nx.shell_layout(dag)
-    nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
-    plt.title('Directed Acyclic Graph (DAG)')
-    plt.savefig('dag_mle.png')
-    plt.show()
+    # # create the dag
+    # dag = nx.DiGraph()
+    # dag.add_edges_from(edges)
+    # # visualize the dag
+    # plt.figure(figsize=(10, 6))
+    # pos = nx.shell_layout(dag)
+    # nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
+    # plt.title('Directed Acyclic Graph (DAG)')
+    # plt.savefig('dag_mle.png')
+    # plt.show()
 
 
 if __name__ == '__main__':

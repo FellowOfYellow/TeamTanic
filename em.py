@@ -1,14 +1,10 @@
 # allowed imports
-from numpy.typing import NDArray
-from typing import Callable
-from tqdm import tqdm
 import numpy as np
+import numpy.typing as NDArray
 import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
-import itertools
-import random
-import matplotlib.pyplot as plt
+from collections import defaultdict
 
 
 def load_data(file_name, visible_nodes=['SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare']):
@@ -16,8 +12,6 @@ def load_data(file_name, visible_nodes=['SibSp', 'Parch', 'Survived', 'Sex', 'Pc
     df = pd.read_csv(file_name)
     # extract only the visible nodes
     df = df[visible_nodes]
-    # group numerical data into bins
-    df = group_numerical_data(df)
     return df
 
 
@@ -51,10 +45,33 @@ def group_numerical_data(df):
         pd.DataFrame: The modified dataframe with encoded categorical columns and grouped numerical columns
     '''
     if 'Age' in df.columns:
-        df['Age'] = pd.cut(df['Age'], bins=5, labels=False)
+        df['Age'], age_bins = pd.cut(df['Age'], bins=5, labels=False, retbins=True)
     if 'Fare' in df.columns:
-        df['Fare'] = pd.qcut(df['Fare'], q=5, labels=False)
-    return df
+        df['Fare'], fare_bins = pd.qcut(df['Fare'], q=5, labels=False, retbins=True)
+    if 'Age' not in df.columns:
+        age_bins = None
+    if 'Fare' not in df.columns:
+        fare_bins = None
+    return df, age_bins, fare_bins
+
+
+def get_parent(edges):
+    '''
+    This function takes a list of edges representing a directed acyclic graph (DAG)
+    and returns a dictionary mapping each node to its list of parent nodes.
+    Args:
+        edges (list of tuples): A list of edges where each edge is represented as a tuple (parent, child)
+    Returns:
+        dict: A dictionary where keys are nodes and values are lists of parent nodes
+    '''
+    # to store the parent nodes for each child node
+    parent_dict = defaultdict(list)
+    # for each edge in the list of edges
+    for p, c in edges:
+        # append the parent node to the list of parents for the child node
+        parent_dict[c].append(p)
+    # return the dictionary of parent nodes
+    return parent_dict
 
 
 def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']):
@@ -72,56 +89,9 @@ def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pcla
     return possible_values
 
 
-def em(
-    Z_init: NDArray,
-    R_init: NDArray,
-    ratings: NDArray,
-    iterations: int,
-    e_step: Callable,
-    evaluate: Callable,
-    m_step: Callable,
-):
-    """
-    Engine for running the EM algorithm code.
-
-    - Z_init, R_init, and ratings are from the load_data functions.
-    - iterations specifies how many iterations to run for.
-    - e_step, evaluate, and m_step are your function definitions later.
-
-    Returns: p_rz, p_z, the estimated CPTs after running EM for a number of
-    iterations.
-    - p_rz is a numpy array in the same shape as init_R, with the same
-        quantities but is repeatedly updated in EM. The same is true with that
-        of p_z and init_Z.
-    Also returns the log likelihood evaluations (ll_list).
-    """
-
-    # TODO: fill in the ellipses (...).
-    p_rz = (
-        R_init.copy()
-    )  # we copy p_rz and p_z so we don't overwrite init probs on accident
-    p_z = Z_init.copy()
-    ll_list: list[float] = []
-    for it in tqdm(range(iterations)):
-        # E-Step
-        joints = e_step(
-            p_rz, p_z, ratings
-        )  # first check the two lines below, to see what you need to compute
-
-        # P(datapoint_t) = sum_i P(Z=i) prod_j P(R_j = r_j^(t) | Z = i)
-        likelihoods = np.sum(joints, axis=0)  # use joints to calculate likelihoods
-
-        # P(Z=i | datapoint_t) = P(Z=i) * prod_j P(R_j = r_j^(t) | Z = i) / sum_i P(Z=i) * prod_j P(R_j = r_j^(t) | Z = i)
-        rho = joints / likelihoods  # use joints and likelihoods to calculate rho
-
-        # Validate likelihoods (we use likelihoods derived from E-Step to help us calculate)
-        ll = evaluate(likelihoods)
-        ll_list.append(ll)
-
-        # M-Step
-        p_rz, p_z = m_step(p_rz, p_z, rho, ratings)
-
-    return p_rz, p_z, ll_list
+def em(data: pd.DataFrame, possible_vals: dict[str, list], iterations: int):
+    # initialize random cpts
+    pass
 
 
 def e_step(p_rz: NDArray, p_z: NDArray, ratings: NDArray):
@@ -260,12 +230,27 @@ def inference(
 
 
 if __name__ == "__main__":
-    data = load_data('./titanic/train.csv')
+    # load and preprocess data
+    data = load_data("./titanic/train.csv")
+    # generate random embarked for missing values
     data = generate_random_embarked(data)
+    # group numerical data into bins
+    data, age_bins, fare_bins = group_numerical_data(data)
+    # get possible values for each node
     possible_vals = possible_values(data)
     print("Possible Values for each node:")
     for node, vals in possible_vals.items():
         print(f"{node}: {vals}")
+    
+    # define the edges of the dag
+    edges = [
+        ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
+        ('SibSp', 'Survived'), ('Parch', 'Survived'),
+        ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
+        ('Pclass', 'Fare'), ('Embarked', 'Fare'), ('Fare', 'Survived')
+    ]
+    # get the parent dictionary
+    parent_dict = get_parent(edges)
     
 
     # # Run your EM algorithm
