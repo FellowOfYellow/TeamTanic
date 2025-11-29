@@ -205,9 +205,6 @@ def main():
     # encode categorical columns and group numerical columns
     data, age_bins, fare_bins = group_numerical_data(data)
 
-    print('Age bins:', age_bins)
-    print('Fare bins:', fare_bins)
-
     # define the edges of the dag
     edges = [
         ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
