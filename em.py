@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
 from collections import defaultdict
+import itertools
 
 
 def load_data(file_name, visible_nodes=['SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare']):
@@ -74,6 +75,13 @@ def get_parent(edges):
     return parent_dict
 
 
+def build_value_index_map(possible_values):
+    value_index = {}
+    for node, values in possible_values.items():
+        value_index[node] = {val: idx for idx, val in enumerate(values)}
+    return value_index
+
+
 def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']):
     possible_values = {}
     for node in nodes:
@@ -89,144 +97,75 @@ def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pcla
     return possible_values
 
 
-def em(data: pd.DataFrame, possible_vals: dict[str, list], iterations: int):
-    # initialize random cpts
-    pass
+def initialize_cpts(possible_values, parent_dict):
+    '''
+    This function initializes the conditional probability tables (CPTs) for each node
+    in a Bayesian network given the possible values for each node and the parent
+    relationships between nodes.
+    Args:
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+        parent_dict (dict): A dictionary where keys are node names and values are lists of parent node names
+    Returns:
+        dict: A dictionary where keys are node names and values are conditional probability tables (CPTs)
+    '''
+    # to store the cpts
+    cpts = {}
+    for node, values in possible_values.items():
+        # get the parents of the node
+        parents = parent_dict.get(node, [])
+        # initialize the cpt for the node
+        cpts[node] = {}
+        # root nodes
+        if not parents:
+            # generate random probabilities
+            probs = np.random.default_rng().random(len(values))
+            probs /= probs.sum()
+            cpts[node][()] = probs
+        # nodes with parents
+        else:
+            # get the possible values for each parent
+            parent_values_lists = [possible_values[p] for p in parents]
+            # iterate over all combinations of parent values
+            for parent_values in itertools.product(*parent_values_lists):
+                # generate random probabilities
+                probs = np.random.default_rng().random(len(values))
+                probs /= probs.sum()
+                cpts[node][parent_values] = probs
+    return cpts
 
 
-def e_step(p_rz: NDArray, p_z: NDArray, ratings: NDArray):
-    """
-    Calculates P(Z=i) Π P(R_j = r_j^(t) | Z = i) (the numerator of the Written Section :E-Step)
-    for one iteration.
-
-    - p_rz and p_z are your current CPT estimates, as specified above
-    - ratings is from your data loading function
-
-    Returns the numerator of the P(Z=i|datapoint_t) (i.e.  P(Z=i) Π P(R_j = r_j^(t) | Z = i) aka joints)
-
-    (We know that you can calculate the full probability here which is the true
-    value of rho, instead of the joints but we ask you to follow the procedure here)
-
-    The return value is an array of shape (k, T) which contains
-    P(Z=i) Π P(R_j = r_j^(t) | Z = i) at joints[i, t] (shown above)
-    """
-    joints = np.ones((p_z.shape[0], ratings.shape[0]), dtype=np.float32)
-
-    # TODO: complete e_step
-    T, M = ratings.shape
-    k = p_z.shape[0]
-
-    # P(Z=i|datapoint_t) = P(Z=i) * prod_j P(R_j = r_j^(t) | Z = i) / sum_i P(Z=i) * prod_j P(R_j = r_j^(t) | Z = i)
-    for t in range(T):
-        for i in range(k):
-            # start with P(Z=i)
-            prob = p_z[i]
-            # prod_j P(R_j = r_j^(t) | Z = i)
-            for j in range(M):
-                # r_j^(t)
-                r_jt = ratings[t, j]
-                # liked the movie
-                if r_jt == 1:
-                    # P(R_j = 1 | Z = i)
-                    prob *= p_rz[j, i]
-                # did not like the movie
-                elif r_jt == 0:
-                    # P(R_j = 0 | Z = i)
-                    prob *= (1 - p_rz[j, i])
-            joints[i, t] = prob
-    # P(Z=i) * prod_j P(R_j = r_j^(t) | Z = i) (only numerator)
-    return joints
-
-
-def evaluate(likelihoods: NDArray):
-    """
-    Calculate the normalized log-likelihood shown above.
-
-    likelihood for each datapoint. Shape = (T,). Please do not clip probabilities.
-
-    Returns a scalar.
-    """
-
-    # TODO: complete the evaluation function
-    T = likelihoods.shape[0]
-    # L = 1/T * sum_t log(P(datapoint_t))
-    return np.sum(np.log(likelihoods)) / T
-
-
-def m_step(p_rz: NDArray, p_z: NDArray, rho: NDArray, ratings: NDArray):
-    """
-    Makes the updates to the CPTs of the network, preferably not inplace.
-
-    p_rz, p_z are previous CPTs
-    rho is from the E step after normalizing (i.e. P(Z=i | datapoint_t) for all i,t) (Shape=(k, T))
-    ratings is from your data loading function
-
-    Returns new p_rz, p_z in the same format.
-    """
-    # TODO: complete m_step
-    T, M = ratings.shape
-    k = p_z.shape[0]
-    # update p_z = 1/T * sum_t rho_it
-    p_z = np.sum(rho, axis=1) / T
-    # update p_rz
-    for j in range(M):
-        for i in range(k):
-            # numerator: sum_{t seen} rho_it * I(r_j^(t) = 1) + sum_{t not seen} rho_it * P(R_j=1|Z=i)
-            numerator = 0.0
-            # denominator: sum_t rho_it
-            denominator = 0.0
-            for t in range(T):
-                # r_j^(t)
-                r_jt = ratings[t, j]
-                # rho_it
-                rho_it = rho[i, t]
-                if r_jt == 1:
-                    # I(r_j^(t), 1) = 1
-                    numerator += rho_it
-                elif r_jt == -1:
-                    # r_jt == -1 (not seen)
-                    numerator += rho_it * p_rz[j, i]
-                denominator += rho_it
-            # P(R_j=1 | Z=i) = numerator / denominator
-            p_rz[j, i] = numerator / denominator if denominator > 0 else 0.0
-
-    return p_rz, p_z
-
-
-def inference(
-    new_ratings: NDArray, p_z: NDArray, p_rz: NDArray, movie_idx_to_name: list[str]
-) -> dict[str, float]:
-    """
-    - new_ratings: np array of shape (M,) where each entry is 0 for not
-    recommended, 1 for recommended, and -1 for haven't seen.
-    - p_z, p_rz: as defined above
-    - movie_idx_to_name: from data loading step
-
-    Calculate expected_ratings and return a dictionary.
-    The key should be the movie name (only those not yet watched) and the value should be its expected rating.
-    """
-    expected_ratings = {}
-
-    # TODO: calculate expected ratings
-    # Hint: can you reuse one of the functions from above to simplify your code?
-    k = p_z.shape[0]
-    M = new_ratings.shape[0]
-
-    # calculate joints and likelihood for new_ratings
-    joints = e_step(p_rz, p_z, new_ratings.reshape(1, -1))
-    likelihood = np.sum(joints, axis=0)
-    # P(Z=i | datapoint) = P(Z=i) * prod_j P(R_j = r_j | Z = i) / sum_i P(Z=i) * prod_j P(R_j = r_j | Z = i)
-    rho = joints / likelihood if likelihood > 0 else joints
-        
-    for j in range(M):
-        # only for movies not yet watched
-        if new_ratings[j] == -1:
-            # P(R_l=1 | datapoint) = sum_i P(Z=i | datapoint) * P(R_l=1 | Z=i)
-            expected = 0.0
-            for i in range(k):
-                expected += rho[i, 0] * p_rz[j, i]
-            expected_ratings[movie_idx_to_name[j]] = expected
-    return expected_ratings
+def joint_probability(cpts, parent_dict, value_index, assignments, nodes):
+    '''
+    This function computes the joint probability of a given assignment of values to nodes
+    in a Bayesian network using the provided conditional probability tables (CPTs) and
+    parent relationships.
+    Args:
+        cpts (dict): Conditional probability tables for each node
+        parent_dict (dict): Dictionary mapping nodes to their parent nodes
+        value_index (dict): Dictionary mapping node values to their indices
+        assignments (dict): Dictionary of node assignments
+        nodes (list): List of nodes in the network
+    Returns:
+        float: Joint probability of the given assignment
+    '''
+    # compute the joint probability of a given assignment
+    prob = 1.0
+    for node in nodes:
+        # get the parent values for the node
+        parent = parent_dict.get(node, [])
+        # root nodes
+        if not parent:
+            parent_tuple = ()
+        # nodes with parents
+        else:
+            # get the parent tuple
+            parent_tuple = tuple(assignments[p] for p in parent)
+        # get the index of the value for the node
+        val_idx = value_index[node][assignments[node]]
+        # multiply the probability
+        prob *= cpts[node][parent_tuple][val_idx]
+    # return the joint probability of the assignment
+    return prob
 
 
 if __name__ == "__main__":
@@ -237,10 +176,10 @@ if __name__ == "__main__":
     # group numerical data into bins
     data, age_bins, fare_bins = group_numerical_data(data)
     # get possible values for each node
-    possible_vals = possible_values(data)
-    print("Possible Values for each node:")
-    for node, vals in possible_vals.items():
-        print(f"{node}: {vals}")
+    possible_values = possible_values(data)
+    # print("Possible Values for each node:")
+    # for node, vals in possible_values.items():
+    #     print(f"{node}: {vals}")
     
     # define the edges of the dag
     edges = [
