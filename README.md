@@ -30,7 +30,7 @@ $$P_{\text{ML}}(X_i = x | \text{pa}_i = \pi) = \frac{\text{count}(X_i = x, \text
 
 where $T$ is the number of data points.
 
-### Expectaion-Maximization Algorithm
+## Expectaion-Maximization Algorithm
 ![DAG](./dag_em.png)
 - E-Step (Inference): Compute posterior probabilities
   - For root nodes:
