@@ -98,7 +98,7 @@ def build_value_index_map(possible_values):
     return value_index
 
 
-def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']):
+def possible_values(df, nodes):
     '''
     This function determines the possible values for each node in a Bayesian network
     based on the provided dataframe.
@@ -116,6 +116,8 @@ def possible_values(df, nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pcla
                 possible_values[node] = list(range(5))
             if node == 'Fare':
                 # 5 bins for Fare
+                possible_values[node] = list(range(5))
+            if node == 'Cabin':
                 possible_values[node] = list(range(5))
     return possible_values
 
@@ -614,24 +616,28 @@ def main():
     data = generate_random_embarked(data)
     # group numerical data into bins
     data, age_bins, fare_bins = group_numerical_data(data)
-    # get possible values for each node
-    possible_vals = possible_values(data)
-    # build value index map
-    value_index = build_value_index_map(possible_vals)
-    
+
     # define the edges of the dag
     edges = [
         ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
         ('SibSp', 'Survived'), ('Parch', 'Survived'),
         ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
-        ('Pclass', 'Fare'), ('Embarked', 'Fare'), ('Fare', 'Survived')
+        # ('Pclass', 'Fare'), ('Embarked', 'Fare'), ('Fare', 'Survived'),
+        ('Pclass', 'Cabin'), ('Embarked', 'Cabin'), ('Cabin', 'Fare'), ('Fare', 'Survived')
     ]
     # get the parent dictionary
     parent_dict = get_parent(edges)
 
+    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
+
+    # get possible values for each node
+    possible_vals = possible_values(data, nodes)
+    # build value index map
+    value_index = build_value_index_map(possible_vals)
+
     # define visible and hidden nodes
     visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
-    hidden_nodes = ['Age']
+    hidden_nodes = ['Age', 'Cabin']
     
     # run EM algorithm
     cpts, ll_list = run_em(data, parent_dict, possible_vals, hidden_nodes, value_index)
@@ -639,7 +645,7 @@ def main():
     print('=' * 50, 'Evaluating Inference', '=' * 50)
 
     visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']
-    hidden_nodes = ['Age', 'Survived']
+    hidden_nodes = ['Age', 'Survived', 'Cabin']
 
     evaluate_test_log_likelihood(cpts, parent_dict, possible_vals, value_index, hidden_nodes,
                                  age_bins, fare_bins, test_file='./titanic/test.csv')
