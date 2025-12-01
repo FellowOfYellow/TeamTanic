@@ -1,4 +1,3 @@
-# allowed imports
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -46,7 +45,7 @@ def generate_random_embarked(df):
     return df
 
 
-def group_numerical_data(df):
+def group_numerical_data(df, nodes):
     '''
     This function groups numerical columns into bins.
     Args:
@@ -54,14 +53,18 @@ def group_numerical_data(df):
     Returns:
         pd.DataFrame: The modified dataframe with encoded categorical columns and grouped numerical columns
     '''
-    if 'Age' in df.columns:
+    if 'Age' in df.columns and 'Age' in nodes:
         df['Age'], age_bins = pd.cut(df['Age'], bins=5, labels=False, retbins=True)
-    if 'Fare' in df.columns:
+    if 'Fare' in df.columns and 'Fare' in nodes:
         df['Fare'], fare_bins = pd.qcut(df['Fare'], q=5, labels=False, retbins=True)
-    if 'Age' not in df.columns:
+    if 'Age' not in df.columns or 'Age' not in nodes:
         age_bins = None
-    if 'Fare' not in df.columns:
+    if 'Fare' not in df.columns or 'Fare' not in nodes:
         fare_bins = None
+    if 'Cabin' in df.columns and 'Cabin' in nodes:
+        # take the first letter of the cabin
+        df['Cabin'] = df['Cabin'].str[0]
+        df['Cabin'] = df['Cabin'].fillna('U')
     return df, age_bins, fare_bins
 
 
@@ -116,8 +119,6 @@ def possible_values(df, nodes):
                 possible_values[node] = list(range(5))
             if node == 'Fare':
                 # 5 bins for Fare
-                possible_values[node] = list(range(5))
-            if node == 'Cabin':
                 possible_values[node] = list(range(5))
     return possible_values
 
@@ -610,12 +611,16 @@ def evaluate_test_log_likelihood(cpts, parent_dict, possible_values, value_index
 
 def main():
     print('=' * 50, 'Training with EM Algorithm', '=' * 50)
+
+    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
+
     # load and preprocess data
     data = load_data("./titanic/train.csv")
     # generate random embarked for missing values
     data = generate_random_embarked(data)
     # group numerical data into bins
-    data, age_bins, fare_bins = group_numerical_data(data)
+    data, age_bins, fare_bins = group_numerical_data(data, nodes)
 
     # define the edges of the dag
     edges = [
@@ -627,9 +632,6 @@ def main():
     ]
     # get the parent dictionary
     parent_dict = get_parent(edges)
-
-    # nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
-    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
 
     # get possible values for each node
     possible_vals = possible_values(data, nodes)
