@@ -669,6 +669,17 @@ def main():
     plt.legend()
     plt.show()
 
+    # create the dag
+    dag = nx.DiGraph()
+    dag.add_edges_from(edges)
+    # visualize the dag
+    plt.figure(figsize=(10, 6))
+    pos = nx.shell_layout(dag)
+    nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
+    plt.title('Directed Acyclic Graph (DAG)')
+    plt.savefig('dag_mle.png')
+    plt.show()
+
 
 if __name__ == "__main__":
     main()
