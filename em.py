@@ -7,6 +7,7 @@ import itertools
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score
 
+np.random.seed(42)
 
 def load_data(file_name):
     '''
