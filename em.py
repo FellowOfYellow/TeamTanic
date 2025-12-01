@@ -111,18 +111,16 @@ def possible_values(df, nodes):
     # to store the possible values for each node
     possible_values = {}
     for node in nodes:
-        df[node] = df[node].sort_values()
         # get the unique values for the node from the dataframe
         if node in df.columns:
+            df[node] = df[node].sort_values()
             possible_values[node] = df[node].dropna().unique().tolist()
-        # handle numerical nodes separately
+        elif node == 'Wealth':
+            print('HERE')
+            # 3 bins for wealth
+            possible_values[node] = list(range(3))
         else:
-            if node == 'Age':
-                # 5 bins for Age
-                possible_values[node] = list(range(5))
-            if node == 'Fare':
-                # 5 bins for Fare
-                possible_values[node] = list(range(5))
+            assert ValueError(f"Node {node} not found in dataframe columns.")
     return possible_values
 
 
@@ -653,6 +651,19 @@ def main(case):
         # define visible and hidden nodes
         visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Fare', 'Survived']
         hidden_nodes = ['Age', 'Cabin', 'Embarked']
+    elif case == 4:
+        nodes = ['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin', 'Wealth']
+        # define the edges of the dag
+        edges = [
+            ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
+            ('SibSp', 'Survived'), ('Parch', 'Survived'),
+            ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
+            ('Wealth', 'Embarked'), ('Wealth', 'Fare'), ('Wealth', 'Pclass'),
+            ('Pclass', 'Cabin'), ('Embarked', 'Cabin'), ('Cabin', 'Fare'), ('Fare', 'Survived')
+        ]
+        # define visible and hidden nodes
+        visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Fare', 'Survived']
+        hidden_nodes = ['Age', 'Cabin', 'Embarked', 'Wealth']
 
     # load and preprocess data
     data = load_data("./titanic/train.csv")
@@ -703,7 +714,7 @@ def main(case):
     pos = nx.shell_layout(dag)
     nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
     plt.title('Directed Acyclic Graph (DAG)')
-    plt.savefig('dag_em.png')
+    # plt.savefig('dag_em.png')
     plt.show()
 
 
@@ -711,7 +722,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--number", type=int, required=True)
     args = parser.parse_args()
-    if args.number not in [1, 2, 3]:
-        raise ValueError("Invalid case number. Please choose 1, 2, or 3.")
+    if args.number not in [1, 2, 3, 4]:
+        raise ValueError("Invalid case number. Please choose 1, 2, 3, or 4.")
     main(args.number)
 
