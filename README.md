@@ -32,23 +32,35 @@ where $T$ is the number of data points.
 
 ## Expectaion-Maximization Algorithm
 ![DAG](./dag_em.png)
-- E-Step (Inference): Compute posterior probabilities
-  - For root nodes:
 
-    $$P(X_i=x|V_t=v_t)$$
+### EM Algorithm
+- Initialize the CPTs at random
+- Iterate until convergence
+  - E-Step (Inference): Compute posterior probabilities
+    - For root nodes:
 
-  - For nodes with parents:
+      $$P(X_i=x|V_t=v_t)$$
+
+    - For nodes with parents:
     
     $$P(X_i=x, pa_i=\pi|V_t=v_t)$$
 
-- M-Step (Learning): Update the CPTs based on the probabilities
-  - For root nodes:
-    
-    $$P(X_i=x) \leftarrow \frac{1}{T} \sum_{t=1}^T P(X_i=x|V_t=v_t)$$
-  - For nodes with parents:
-    
-    $$P(X_i=x|pa_i=\pi) \leftarrow \frac{\sum_{t=1}^T P(X_i=x, pa_i=\pi|V_t=v_t)}{\sum_{t=1}^T P(pa_i=\pi|V_t=v_t)}$$
+  - M-Step (Learning): Update the CPTs based on the probabilities
+    - For root nodes:
+      
+      $$P(X_i=x) \leftarrow \frac{1}{T} \sum_{t=1}^T P(X_i=x|V_t=v_t)$$
 
+    - For nodes with parents:
+      
+      $$P(X_i=x|pa_i=\pi) \leftarrow \frac{\sum_{t=1}^T P(X_i=x, pa_i=\pi|V_t=v_t)}{\sum_{t=1}^T P(pa_i=\pi|V_t=v_t)}$$
+
+### Feature Processing
+Similar to MLE, we calculated the histograms and group them into bins instead of using the values directly. However, `Age` is hidden in the experiments so we only handle `Fare` in this way.
+
+### Generating Missing Data
+Similar to MLE, for `Embarked` we randomly assign one of the three to the missing data points for experiment 1 and 2. For experiment 3, we made `Embarked` hidden.
+
+### Run the Code
 To run the following experiments, run `python em.py -e x` where `x` is the case number
 
 1. `Age` hidden, no `Cabin`, randomly generate missing `Embarked`
