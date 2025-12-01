@@ -628,6 +628,7 @@ def main():
     # get the parent dictionary
     parent_dict = get_parent(edges)
 
+    # nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
     nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
 
     # get possible values for each node
@@ -637,6 +638,7 @@ def main():
 
     # define visible and hidden nodes
     visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+    # hidden_nodes = ['Age']
     hidden_nodes = ['Age', 'Cabin']
     
     # run EM algorithm
@@ -645,6 +647,7 @@ def main():
     print('=' * 50, 'Evaluating Inference', '=' * 50)
 
     visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']
+    # hidden_nodes = ['Age', 'Survived']
     hidden_nodes = ['Age', 'Survived', 'Cabin']
 
     evaluate_test_log_likelihood(cpts, parent_dict, possible_vals, value_index, hidden_nodes,
