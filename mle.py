@@ -128,7 +128,11 @@ def inference(cpt, parent_dict, age_bins, fare_bins, test_file='./titanic/test.c
     data = generate_random_embarked(data)
     # encode categorical columns and group numerical columns
     data['Age'] = np.searchsorted(age_bins, data['Age'], side='right') - 1
+    # clamp to valid bin range
+    data['Age'] = data['Age'].clip(0, len(age_bins) - 2)
     data['Fare'] = np.searchsorted(fare_bins, data['Fare'], side='right') - 1
+    # clamp to valid bin range
+    data['Fare'] = data['Fare'].clip(0, len(fare_bins) - 2)
 
     result = {}
 

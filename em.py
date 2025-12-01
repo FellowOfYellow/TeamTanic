@@ -1,11 +1,12 @@
 # allowed imports
 import numpy as np
-import numpy.typing as NDArray
 import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
 from collections import defaultdict
 import itertools
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score
 
 
 def load_data(file_name):
@@ -214,19 +215,44 @@ def joint_probability(cpts, parent_dict, value_index, assignments, nodes):
         else:
             # get the parent tuple
             parent_tuple = tuple(assignments[p] for p in parent)
+
+        val = assignments[node]
+        # if see an unseen value, return 0 probability
+        if val not in value_index[node]:
+            return 0.0
+        
         # get the index of the value for the node
-        val_idx = value_index[node][assignments[node]]
+        val_idx = value_index[node][val]
         # multiply the probability
         prob *= cpts[node][parent_tuple][val_idx]
     # return the joint probability of the assignment
     return prob
 
 
-def e_step(data, cpts, parent_dict, possible_values, hidden_nodes):
+def e_step(data, cpts, parent_dict, possible_values, hidden_nodes, value_index):
+    '''
+    This function performs the Expectation step (E-step) of the EM algorithm
+    for a Bayesian network given the data, conditional probability tables (CPTs),
+    parent relationships, possible values for each node, value index, and hidden nodes.
+
+    E-Step (Inference): Compute posterior probabilities and accumulate the expected counts for each CPT entry.
+    Root nodes:
+        P(X_i=x_i|V_t=v_t)
+    Nodes with parents:
+        P(X_i=x_i, pa_i=π|V_t=v_t)
+
+    Args:
+        data (pd.DataFrame): The input data for the E-step
+        cpts (dict): Conditional probability tables for each node
+        parent_dict (dict): Dictionary mapping nodes to their parent nodes
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+        hidden_nodes (list): A list of nodes that are considered hidden in the E-step
+        value_index (dict): Dictionary mapping node values to their indices
+    Returns:
+        tuple: A tuple containing the expected counts and the log-likelihood of the data
+    '''
     # get the list of all nodes X_i
     nodes = list(possible_values.keys())
-    # build value index map
-    value_index = build_value_index_map(possible_values)
     # to store the expected counts P(X_i=x_i, pa_i=π)
     counts = initialize_counts(possible_values, parent_dict)
     # to store the log-likelihood of the data ∑_t log P(V_t=v_t)
@@ -239,7 +265,7 @@ def e_step(data, cpts, parent_dict, possible_values, hidden_nodes):
     # iterate over each data point
     for _, row in data.iterrows():
         # get the observed assignments V_t = v_t
-        observed_assignments = {node: row[node] for node in nodes if node not in hidden_nodes}
+        observed_assignments = {node: row[node] for node in nodes if node not in hidden_nodes and node in data.columns}
 
         # to store the unnormalized probabilities P(V_t=v_t, H_t=h)
         weights = []
@@ -295,6 +321,24 @@ def e_step(data, cpts, parent_dict, possible_values, hidden_nodes):
 
 
 def m_step(counts, possible_values):
+    '''
+    This function performs the Maximization step (M-step) of the EM algorithm
+    for a Bayesian network given the expected counts and possible values for each node.
+
+    M-Step (Parameter Update): Update the CPTs using the expected counts from the E-step.
+    Root nodes:
+        P(X_i=x) <- Σ_t P(X_i=x|V_t=v_t) / T
+    Nodes with parents:
+                            Σ_t P(X_i=x, pa_i=π|V_t=v_t)
+        P(X_i=x|pa_i=π) <- ------------------------------
+                               Σ_t P(pa_i=π|V_t=v_t)
+    
+    Args:
+        counts (dict): Expected counts for each node
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+    Returns:
+        dict: Updated conditional probability tables (CPTs) for each node
+    '''
     # to store the updated cpts
     cpts = {}
     for node, values in possible_values.items():
@@ -319,7 +363,7 @@ def m_step(counts, possible_values):
     return cpts
 
 
-def run_em(data, parent_dict, possible_values, hidden_nodes, max_iters=1000, tol=1e-3):
+def run_em(data, parent_dict, possible_values, hidden_nodes, value_index, max_iters=1000, tol=1e-3):
     '''
     This function runs the Expectation-Maximization (EM) algorithm on the given data
     using the provided parent relationships and possible values for each node.
@@ -328,6 +372,7 @@ def run_em(data, parent_dict, possible_values, hidden_nodes, max_iters=1000, tol
         parent_dict (dict): A dictionary where keys are node names and values are lists of parent node names
         possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
         hidden_nodes (list): A list of nodes that are considered hidden in the EM algorithm
+        value_index (dict): Dictionary mapping node values to their indices
         max_iters (int): The maximum number of iterations to run the EM algorithm
         tol (float): The tolerance for convergence based on log-likelihood change
     Returns:
@@ -341,7 +386,7 @@ def run_em(data, parent_dict, possible_values, hidden_nodes, max_iters=1000, tol
     print('Starting EM iterations...')
     for iteration in range(max_iters):
         # e-step
-        counts, log_likelihood = e_step(data, cpts, parent_dict, possible_values, hidden_nodes)
+        counts, log_likelihood = e_step(data, cpts, parent_dict, possible_values, hidden_nodes, value_index)
         ll_list.append(log_likelihood)
         
         # m-step
@@ -361,7 +406,208 @@ def run_em(data, parent_dict, possible_values, hidden_nodes, max_iters=1000, tol
     return cpts, ll_list
 
 
+def process_test_data(test_file='./titanic/test.csv', age_bins=None, fare_bins=None):
+    '''
+    This function processes the test data by loading it, generating random 'Embarked' values
+    for missing values, and encoding categorical columns and grouping numerical columns into bins.
+    Args:
+        test_file (str): The path to the CSV file containing the test data
+        age_bins (array-like): The bin edges for the 'Age' column
+        fare_bins (array-like): The bin edges for the 'Fare' column
+    Returns:
+        pd.DataFrame: The processed test data
+    '''
+    # load and preprocess test data
+    test_data = load_data(test_file)
+    # generate random embarked for missing values
+    test_data = generate_random_embarked(test_data)
+    # encode categorical columns and group numerical columns
+    if age_bins is not None and 'Age' in test_data.columns:
+        test_data['Age'] = np.searchsorted(age_bins, test_data['Age'], side='right') - 1
+        # clamp to valid bin range
+        test_data['Age'] = test_data['Age'].clip(0, len(age_bins) - 2)
+    if fare_bins is not None and 'Fare' in test_data.columns:
+        test_data['Fare'] = np.searchsorted(fare_bins, test_data['Fare'], side='right') - 1
+        # clamp to valid bin range
+        test_data['Fare'] = test_data['Fare'].clip(0, len(fare_bins) - 2)
+    return test_data
+
+
+def inference(cpts, parent_dict, possible_values, value_index, visible_nodes, hidden_nodes, age_bins, fare_bins, 
+              test_file='./titanic/test.csv', query='Survived'):
+    '''
+    This function performs inference on the test data using the learned conditional probability tables (CPTs)
+    from the EM algorithm.
+    Args:
+        cpts (dict): Learned conditional probability tables for each node
+        parent_dict (dict): A dictionary where keys are node names and values are lists of parent node names
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+        value_index (dict): Dictionary mapping node values to their indices
+        visible_nodes (list): A list of nodes that are considered visible in the inference
+        hidden_nodes (list): A list of nodes that are considered hidden in the inference
+        age_bins (array-like): The bin edges for the 'Age' column
+        fare_bins (array-like): The bin edges for the 'Fare' column
+        test_file (str): The path to the CSV file containing the test data
+        query (str): The node for which to perform inference
+    Returns:
+        dict: A dictionary mapping PassengerId to the inferred probability P(Query=1|Evidence)
+    '''
+    # load and preprocess test data
+    test_data = process_test_data(test_file, age_bins, fare_bins)
+    # get the list of all nodes X_i
+    nodes = list(possible_values.keys())
+
+    # hidden nodes for inference
+    hidden_nodes_inference = [node for node in hidden_nodes if node != query]
+    # precompute all the possible assignments for hidden nodes
+    hidden_node_values = [possible_values[n] for n in hidden_nodes_inference]
+    hidden_assignments = list(itertools.product(*hidden_node_values)) if hidden_nodes_inference else [()]
+
+    print('-' * 50)
+    print('Running inference on test data...')
+
+    result = {}
+
+    pbar = tqdm(test_data.iterrows(), total=test_data.shape[0])
+    # perform inference
+    for _, row in pbar:
+        # get the observed assignments V_t = v_t
+        observed_assignments = {node: row[node] for node in visible_nodes}
+        # to store the unnormalized probabilities P(V_t=v_t, H_t=h, Query=q)
+        query_probs = {}
+        # iterate over all possible values for the query node
+        for q_val in possible_values[query]:
+            total = 0.0
+            # iterate over all possible assignments for hidden nodes
+            for hidden_vals in hidden_assignments:
+                # build the full assignment (X_1, X_2, ..., X_n)
+                full_assignment = observed_assignments.copy()
+                full_assignment[query] = q_val
+                for h_node, h_val in zip(hidden_nodes_inference, hidden_vals):
+                    full_assignment[h_node] = h_val
+                # compute the joint probability P(V_t=v_t, H_t=h, Query=q) = ∏_i P(X_i=x_i, pa_i=π)
+                prob = joint_probability(cpts, parent_dict, value_index, full_assignment, nodes)
+                # accumulate the probability
+                total += prob
+            query_probs[q_val] = total
+        # normalize the query probabilities P(Query=q|V_t=v_t) = P(V_t=v_t, Query=q) / Σ_q P(V_t=v_t, Query=q)
+        prob_sum = sum(query_probs.values())
+        if prob_sum == 0:
+            # fallback to uniform distribution
+            for q_val in query_probs:
+                query_probs[q_val] = 1.0 / len(query_probs)
+        else:
+            for q_val in query_probs:
+                query_probs[q_val] /= prob_sum
+        # store the result for the data
+        result[row['PassengerId']] = query_probs[1]
+        pbar.set_description(f'P({query} = 1 | Evidence) = {query_probs[1]:.4f}')
+    return result
+
+
+def evaluate_inference(cpts, parent_dict, possible_values, value_index,
+                       visible_nodes, hidden_nodes, age_bins, fare_bins, 
+                       test_file='./titanic/test.csv', solution_file='./titanic/gender_submission.csv',
+                       query='Survived'):
+    '''
+    This function evaluates the inference results on the test data by comparing
+    the predicted labels with the true labels from the solution file.
+    Args:
+        cpts (dict): Learned conditional probability tables for each node
+        parent_dict (dict): A dictionary where keys are node names and values are lists of parent node names
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+        value_index (dict): Dictionary mapping node values to their indices
+        visible_nodes (list): A list of nodes that are considered visible in the inference
+        hidden_nodes (list): A list of nodes that are considered hidden in the inference
+        age_bins (array-like): The bin edges for the 'Age' column
+        fare_bins (array-like): The bin edges for the 'Fare' column
+        test_file (str): The path to the CSV file containing the test data
+        solution_file (str): The path to the CSV file containing the true labels for the test data
+        query (str): The node for which to perform inference
+    Returns:
+        None
+    '''
+    # run inference on test data
+    inference_result = inference(cpts, parent_dict, possible_values, value_index, visible_nodes, hidden_nodes, age_bins, fare_bins, test_file, query)
+    # read the solution data
+    solution = pd.read_csv(solution_file)
+
+    # prepare true and predicted labels
+    y_true, y_pred = [], []
+    for _, row in solution.iterrows():
+        y_true.append(row[query])
+        y_pred.append(1 if inference_result[row['PassengerId']] >= 0.5 else 0)
+
+    print('Accuracy:', accuracy_score(y_true, y_pred))
+    print('Precision:', precision_score(y_true, y_pred))
+    print('Recall:', recall_score(y_true, y_pred))
+
+    # print('Classification Report:\n', classification_report(y_true, y_pred))
+    # cm = confusion_matrix(y_true, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    # disp.plot()
+    # plt.show()
+
+
+def evaluate_test_log_likelihood(cpts, parent_dict, possible_values, value_index, hidden_nodes,
+                                 age_bins, fare_bins, test_file='./titanic/test.csv'):
+    ''''
+    This function evaluates the log-likelihood of the test data using the learned
+    conditional probability tables (CPTs) from the EM algorithm.
+    Args:
+        cpts (dict): Learned conditional probability tables for each node
+        parent_dict (dict): A dictionary where keys are node names and values are lists of parent node names
+        possible_values (dict): A dictionary where keys are node names and values are lists of possible values for each node
+        value_index (dict): Dictionary mapping node values to their indices
+        hidden_nodes (list): A list of nodes that are considered hidden in the evaluation
+        age_bins (array-like): The bin edges for the 'Age' column
+        fare_bins (array-like): The bin edges for the 'Fare' column
+        test_file (str): The path to the CSV file containing the test data
+    Returns:
+        float: The total log-likelihood of the test data
+    '''
+    print('-' * 50)
+    print('Evaluating Test Log-Likelihood...')
+    # load and preprocess test data
+    test_data = process_test_data(test_file, age_bins, fare_bins)
+    # get the list of all nodes X_i
+    nodes = list(possible_values.keys())
+    # all combinations of hidden node values
+    if hidden_nodes:
+        hidden_values_lists = [possible_values[h] for h in hidden_nodes]
+        hidden_assignments = list(itertools.product(*hidden_values_lists))
+    else:
+        hidden_assignments = [()]
+    # to store the total log-likelihood of the test data
+    total_log_likelihood = 0.0
+    for _, row in test_data.iterrows():
+        # get the observed assignments V_t = v_t
+        observed_assignments = {node: row[node] for node in nodes if node not in hidden_nodes and node in test_data.columns}
+        # to store the unnormalized probabilities P(V_t=v_t, H_t=h)
+        weights = []
+        # iterate over all possible assignments for hidden nodes
+        for hidden_vals in hidden_assignments:
+            # build the full assignment (X_1, X_2, ..., X_n)
+            full_assignment = observed_assignments.copy()
+            for idx, node in enumerate(hidden_nodes):
+                full_assignment[node] = hidden_vals[idx]
+            # compute the joint probability P(V_t=v_t, H_t=h) = ∏_i P(X_i=x_i, pa_i=π)
+            prob = joint_probability(cpts, parent_dict, value_index, full_assignment, nodes)
+            weights.append(prob)
+        # P(V_t=v_t) = Σ_h P(V_t=v_t, H_t=h)
+        weight_sum = sum(weights)
+        
+        if weight_sum == 0:
+            print('Warning: Zero probability encountered for a test data point. Skipping log-likelihood contribution.')
+            continue
+        # log-likelihood contribution from this data point P(V_t=v_t) = Σ_h P(V_t=v_t, H_t=h)
+        total_log_likelihood += np.log(weight_sum)
+    print('Test Log-Likelihood:', total_log_likelihood)
+    return total_log_likelihood
+
+
 def main():
+    print('=' * 50, 'Training with EM Algorithm', '=' * 50)
     # load and preprocess data
     data = load_data("./titanic/train.csv")
     # generate random embarked for missing values
@@ -370,6 +616,8 @@ def main():
     data, age_bins, fare_bins = group_numerical_data(data)
     # get possible values for each node
     possible_vals = possible_values(data)
+    # build value index map
+    value_index = build_value_index_map(possible_vals)
     
     # define the edges of the dag
     edges = [
@@ -382,11 +630,25 @@ def main():
     parent_dict = get_parent(edges)
 
     # define visible and hidden nodes
-    visible_nodes = ['SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare']
-    hidden_nodes = ['Age', 'Survived']
+    visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+    hidden_nodes = ['Age']
     
     # run EM algorithm
-    cpts, ll_list = run_em(data, parent_dict, possible_vals, hidden_nodes)
+    cpts, ll_list = run_em(data, parent_dict, possible_vals, hidden_nodes, value_index)
+
+    print('=' * 50, 'Evaluating Inference', '=' * 50)
+
+    visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']
+    hidden_nodes = ['Age', 'Survived']
+
+    evaluate_test_log_likelihood(cpts, parent_dict, possible_vals, value_index, hidden_nodes,
+                                 age_bins, fare_bins, test_file='./titanic/test.csv')
+    
+    # evaluate inference on test data
+    evaluate_inference(cpts, parent_dict, possible_vals, value_index,
+                       visible_nodes, hidden_nodes, age_bins, fare_bins, 
+                       test_file='./titanic/test.csv', solution_file='./titanic/gender_submission.csv',
+                       query='Survived')
 
     # plot log-likelihood over iterations
     plt.plot(ll_list, label="Log-Likelihood over Iterations")
