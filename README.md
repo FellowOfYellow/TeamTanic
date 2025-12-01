@@ -5,7 +5,7 @@ Dataset Source: [https://www.kaggle.com/competitions/titanic/data](https://www.k
 
 
 ## Maximum Likelihood Estimation
-![DAG](dag.png)
+![DAG](dag_mle.png)
 
 ### Generating Missing Data
 - `Age`: 177 out of 891 are missing in the training data. We first make a normal distribution with the mean and standard deviation of the rest values we have. To fill the missing values out, we then generate random values from the distribution.
@@ -22,10 +22,37 @@ For numerical features, we calculated the histograms and group them into bins in
 ### MLE Calculation
 For root nodes:
 $$
-P_{\text{ML}}(X_i = x) = \dfrac{\text{count}(X_i = x)}{T}
+P_{\text{ML}}(X_i = x) = \frac{\text{count}(X_i = x)}{T}
 $$
-For node with parents:
+For nodes with parents:
 $$
-P_{\text{ML}}(X_i = x | \text{pa}_i = \pi) = \dfrac{\text{count}(X_i = x, \text{pa}_i = \pi)}{\text{count}(\text{pa}_i = \pi)}
+P_{\text{ML}}(X_i = x | \text{pa}_i = \pi) = \frac{\text{count}(X_i = x, \text{pa}_i = \pi)}{\text{count}(\text{pa}_i = \pi)}
 $$
 where $T$ is the number of data points.
+
+### Expectaion-Maximization Algorithm
+![DAG](./dag_em.png)
+- E-Step (Inference): Compute posterior probabilities
+  - For root nodes:
+    $$
+    P(X_i=x|V_t=v_t)
+    $$
+  - For nodes with parents:
+    $$
+    P(X_i=x, pa_i=\pi|V_t=v_t)
+    $$
+- M-Step (Learning): Update the CPTs based on the probabilities
+  - For root nodes:
+    $$
+    P(X_i=x) \leftarrow \frac{1}{T} \sum_{t=1}^T P(X_i=x|V_t=v_t)
+    $$
+  - For nodes with parents:
+    $$
+    P(X_i=x|pa_i=\pi) \leftarrow \frac{\sum_{t=1}^T P(X_i=x, pa_i=\pi|V_t=v_t)}{\sum_{t=1}^T P(pa_i=\pi|V_t=v_t)}
+    $$
+
+To run the following experiments, run `python em.py -e x` where `x` is the case number
+
+1. `Age` hidden, no `Cabin`, randomly generate missing `Embarked`
+2. `Age`, `Cabin` hidden, randomly generate missing `Embarked`
+3. `Age`, `Cabin`, `Embarked` all hidden
