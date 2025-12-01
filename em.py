@@ -117,8 +117,8 @@ def possible_values(df, nodes):
             possible_values[node] = df[node].dropna().unique().tolist()
         elif node == 'Wealth':
             print('HERE')
-            # 3 bins for wealth
-            possible_values[node] = list(range(3))
+            # 2 bins for wealth
+            possible_values[node] = list(range(2))
         else:
             assert ValueError(f"Node {node} not found in dataframe columns.")
     return possible_values
