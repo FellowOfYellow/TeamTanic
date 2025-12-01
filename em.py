@@ -612,7 +612,7 @@ def evaluate_test_log_likelihood(cpts, parent_dict, possible_values, value_index
 def main():
     print('=' * 50, 'Training with EM Algorithm', '=' * 50)
 
-    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+    # nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
     nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
 
     # load and preprocess data
@@ -677,7 +677,7 @@ def main():
     pos = nx.shell_layout(dag)
     nx.draw(dag, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
     plt.title('Directed Acyclic Graph (DAG)')
-    plt.savefig('dag_mle.png')
+    plt.savefig('dag_em.png')
     plt.show()
 
 
