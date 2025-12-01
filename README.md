@@ -66,3 +66,4 @@ To run the following experiments, run `python em.py -e x` where `x` is the case 
 1. `Age` hidden, no `Cabin`, randomly generate missing `Embarked`
 2. `Age`, `Cabin` hidden, randomly generate missing `Embarked`
 3. `Age`, `Cabin`, `Embarked` all hidden
+4. Added `Wealth` as a hidden node

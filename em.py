@@ -116,7 +116,6 @@ def possible_values(df, nodes):
             df[node] = df[node].sort_values()
             possible_values[node] = df[node].dropna().unique().tolist()
         elif node == 'Wealth':
-            print('HERE')
             # 2 bins for wealth
             possible_values[node] = list(range(2))
         else:
