@@ -6,6 +6,7 @@ from collections import defaultdict
 import itertools
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score
+import argparse
 
 np.random.seed(42)
 
@@ -613,11 +614,45 @@ def evaluate_test_log_likelihood(cpts, parent_dict, possible_values, value_index
     return total_log_likelihood
 
 
-def main():
+def main(case):
     print('=' * 50, 'Training with EM Algorithm', '=' * 50)
 
-    # nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
-    nodes=['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
+    if case == 1:
+        nodes = ['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+        # define the edges of the dag
+        edges = [
+            ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
+            ('SibSp', 'Survived'), ('Parch', 'Survived'),
+            ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
+            ('Pclass', 'Fare'), ('Embarked', 'Fare'), ('Fare', 'Survived'),
+        ]
+        # define visible and hidden nodes
+        visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+        hidden_nodes = ['Age']
+    elif case == 2:
+        nodes = ['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
+        # define the edges of the dag
+        edges = [
+            ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
+            ('SibSp', 'Survived'), ('Parch', 'Survived'),
+            ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
+            ('Pclass', 'Cabin'), ('Embarked', 'Cabin'), ('Cabin', 'Fare'), ('Fare', 'Survived')
+        ]
+        # define visible and hidden nodes
+        visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
+        hidden_nodes = ['Age', 'Cabin']
+    elif case == 3:
+        nodes = ['Age', 'SibSp', 'Parch', 'Survived', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived', 'Cabin']
+        # define the edges of the dag
+        edges = [
+            ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
+            ('SibSp', 'Survived'), ('Parch', 'Survived'),
+            ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
+            ('Pclass', 'Cabin'), ('Embarked', 'Cabin'), ('Cabin', 'Fare'), ('Fare', 'Survived')
+        ]
+        # define visible and hidden nodes
+        visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Fare', 'Survived']
+        hidden_nodes = ['Age', 'Cabin', 'Embarked']
 
     # load and preprocess data
     data = load_data("./titanic/train.csv")
@@ -626,14 +661,6 @@ def main():
     # group numerical data into bins
     data, age_bins, fare_bins = group_numerical_data(data, nodes)
 
-    # define the edges of the dag
-    edges = [
-        ('Age', 'SibSp'), ('Age', 'Parch'), ('Age', 'Survived'),
-        ('SibSp', 'Survived'), ('Parch', 'Survived'),
-        ('Sex', 'Survived'), ('Sex', 'Pclass'), ('Pclass', 'Embarked'),
-        # ('Pclass', 'Fare'), ('Embarked', 'Fare'), ('Fare', 'Survived'),
-        ('Pclass', 'Cabin'), ('Embarked', 'Cabin'), ('Cabin', 'Fare'), ('Fare', 'Survived')
-    ]
     # get the parent dictionary
     parent_dict = get_parent(edges)
 
@@ -641,20 +668,15 @@ def main():
     possible_vals = possible_values(data, nodes)
     # build value index map
     value_index = build_value_index_map(possible_vals)
-
-    # define visible and hidden nodes
-    visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare', 'Survived']
-    # hidden_nodes = ['Age']
-    hidden_nodes = ['Age', 'Cabin']
     
     # run EM algorithm
     cpts, ll_list = run_em(data, parent_dict, possible_vals, hidden_nodes, value_index)
 
     print('=' * 50, 'Evaluating Inference', '=' * 50)
 
-    visible_nodes = ['SibSp', 'Parch', 'Sex', 'Pclass', 'Embarked', 'Fare']
-    # hidden_nodes = ['Age', 'Survived']
-    hidden_nodes = ['Age', 'Survived', 'Cabin']
+    # remove survived from visible nodes and add to hidden nodes for evaluation
+    visible_nodes.remove('Survived')
+    hidden_nodes.append('Survived')
 
     evaluate_test_log_likelihood(cpts, parent_dict, possible_vals, value_index, hidden_nodes,
                                  age_bins, fare_bins, test_file='./titanic/test.csv')
@@ -686,5 +708,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e", "--number", type=int, required=True)
+    args = parser.parse_args()
+    if args.number not in [1, 2, 3]:
+        raise ValueError("Invalid case number. Please choose 1, 2, or 3.")
+    main(args.number)
 
