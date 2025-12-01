@@ -55,9 +55,9 @@ def group_numerical_data(df, nodes):
         pd.DataFrame: The modified dataframe with encoded categorical columns and grouped numerical columns
     '''
     if 'Age' in df.columns and 'Age' in nodes:
-        df['Age'], age_bins = pd.cut(df['Age'], bins=5, labels=False, retbins=True)
+        df['Age'], age_bins = pd.cut(df['Age'].to_numpy(dtype=float), bins=5, labels=False, retbins=True)
     if 'Fare' in df.columns and 'Fare' in nodes:
-        df['Fare'], fare_bins = pd.qcut(df['Fare'], q=5, labels=False, retbins=True)
+        df['Fare'], fare_bins = pd.qcut(df['Fare'].to_numpy(dtype=float), q=5, labels=False, retbins=True)
     if 'Age' not in df.columns or 'Age' not in nodes:
         age_bins = None
     if 'Fare' not in df.columns or 'Fare' not in nodes:
@@ -110,6 +110,7 @@ def possible_values(df, nodes):
     # to store the possible values for each node
     possible_values = {}
     for node in nodes:
+        df[node] = df[node].sort_values()
         # get the unique values for the node from the dataframe
         if node in df.columns:
             possible_values[node] = df[node].dropna().unique().tolist()
@@ -147,7 +148,8 @@ def initialize_cpts(possible_values, parent_dict):
         # root nodes
         if not parents:
             # generate random probabilities
-            probs = np.random.default_rng().random(len(values))
+            # probs = np.random.default_rng().random(len(values))
+            probs = np.random.random(len(values))
             probs /= probs.sum()
             cpts[node][()] = probs
         # nodes with parents
@@ -157,7 +159,8 @@ def initialize_cpts(possible_values, parent_dict):
             # iterate over all combinations of parent values
             for parent_values in itertools.product(*parent_values_lists):
                 # generate random probabilities
-                probs = np.random.default_rng().random(len(values))
+                # probs = np.random.default_rng().random(len(values))
+                probs = np.random.random(len(values))
                 probs /= probs.sum()
                 cpts[node][parent_values] = probs
     return cpts
